@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Spider Solitaire</title>
+<style>
+  :root{
+    --bg:#050505;
+    --panel:#111;
+    --panel2:#171717;
+    --text:#f5f5f5;
+    --muted:#aaa;
+    --accent:#d8d8d8;
+    --card-w:92px;
+    --card-h:128px;
+    --gap:18px;
+    --down-overlap:28px;
+    --up-overlap:32px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden}
+  button,select{font:inherit}
+  body{
+    background:
+      radial-gradient(circle at 50% 18%, rgba(255,255,255,.035), transparent 38%),
+      linear-gradient(#050505,#000);
+  }
+  .app{min-height:100vh;display:flex;flex-direction:column}
+  header{
+    display:flex;align-items:center;justify-content:space-between;gap:16px;
+    padding:14px 18px;border-bottom:1px solid #222;background:rgba(8,8,8,.93);
+    position:sticky;top:0;z-index:100;backdrop-filter:blur(8px)
+  }
+  .brand{display:flex;align-items:center;gap:12px}
+  .spider{
+    width:32px;height:32px;border:1px solid #555;border-radius:50%;
+    display:grid;place-items:center;font-size:18px;background:#111
+  }
+  h1{font-size:18px;margin:0;letter-spacing:.3px}
+  .sub{font-size:12px;color:var(--muted)}
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end}
+  .btn, select{
+    color:#eee;background:#141414;border:1px solid #333;border-radius:9px;padding:9px 12px;
+    cursor:pointer;transition:.15s ease;
+  }
+  .btn:hover,select:hover{background:#1e1e1e;border-color:#555}
+  .btn:active{transform:translateY(1px)}
+  .btn:disabled{opacity:.35;cursor:not-allowed}
+  .btn.primary{background:#f4f4f4;color:#050505;border-color:#fff;font-weight:700}
+  .stats{
+    display:flex;gap:20px;align-items:center;padding:10px 18px;border-bottom:1px solid #181818;
+    background:#090909;color:#ccc;font-size:13px;flex-wrap:wrap
+  }
+  .stat strong{color:#fff}
+  .status{margin-left:auto;color:#cfcfcf}
+  .board-wrap{flex:1;padding:20px 18px 130px;overflow:auto}
+  .tableau{
+    min-width:1100px;display:grid;grid-template-columns:repeat(10,var(--card-w));gap:var(--gap);
+    justify-content:center;align-items:start
+  }
+  .column{position:relative;min-height:520px;border-radius:10px}
+  .empty-slot{
+    position:absolute;top:0;left:0;width:var(--card-w);height:var(--card-h);
+    border:1px dashed #2e2e2e;border-radius:9px;background:rgba(255,255,255,.012)
+  }
+  .card{
+    position:absolute;left:0;width:var(--card-w);height:var(--card-h);border-radius:9px;
+    user-select:none;box-shadow:0 2px 7px rgba(0,0,0,.55);transition:transform .12s ease, box-shadow .12s ease;
+    overflow:hidden
+  }
+  .card.face-down{
+    background:
+      linear-gradient(135deg, rgba(255,255,255,.05) 25%, transparent 25%) 0 0/12px 12px,
+      linear-gradient(225deg, rgba(255,255,255,.05) 25%, transparent 25%) 0 0/12px 12px,
+      linear-gradient(315deg, rgba(255,255,255,.05) 25%, transparent 25%) 6px 6px/12px 12px,
+      linear-gradient(45deg, rgba(255,255,255,.05) 25%, #181818 25%) 6px 6px/12px 12px;
+    border:1px solid #494949;
+  }
+  .card.face-down::after{
+    content:"♠";position:absolute;inset:5px;border:1px solid #666;border-radius:6px;
+    display:grid;place-items:center;color:#777;font-size:36px;background:rgba(0,0,0,.28)
+  }
+  .card.face-up{
+    background:linear-gradient(145deg,#fff,#e9e9e9);
+    border:1px solid #bdbdbd;color:#0b0b0b;cursor:pointer
+  }
+  .card.red{color:#c31818}
+  .card.selected{transform:translateY(-7px);box-shadow:0 0 0 3px #fff,0 9px 18px rgba(0,0,0,.75);z-index:80!important}
+  .card.hint-source{box-shadow:0 0 0 4px #ffd84c,0 7px 16px rgba(0,0,0,.7)}
+  .card.hint-target{box-shadow:0 0 0 4px #52e06f,0 7px 16px rgba(0,0,0,.7)}
+  .corner{position:absolute;top:5px;left:7px;font-weight:800;font-size:16px;line-height:15px;text-align:center}
+  .corner .s{font-size:14px}
+  .center-suit{position:absolute;inset:0;display:grid;place-items:center;font-size:42px;opacity:.92}
+  .lower{position:absolute;right:7px;bottom:5px;transform:rotate(180deg);font-weight:800;font-size:16px;line-height:15px;text-align:center}
+  .dock{
+    position:fixed;left:0;right:0;bottom:0;z-index:90;border-top:1px solid #252525;
+    background:rgba(7,7,7,.95);backdrop-filter:blur(10px);padding:12px 18px
+  }
+  .dock-inner{max-width:1160px;margin:auto;display:flex;align-items:center;justify-content:space-between;gap:16px}
+  .stock-area{display:flex;align-items:center;gap:12px}
+  .stock-stack{position:relative;width:130px;height:74px;cursor:pointer}
+  .mini-card{
+    position:absolute;top:0;width:52px;height:72px;border-radius:6px;border:1px solid #555;
+    background:
+      linear-gradient(135deg, rgba(255,255,255,.05) 25%, transparent 25%) 0 0/8px 8px,
+      linear-gradient(45deg,#111 25%,#1c1c1c 25%) 4px 4px/8px 8px;
+    box-shadow:0 2px 5px #000
+  }
+  .stock-label{font-size:12px;color:#aaa;margin-top:4px}
+  .completed{display:flex;align-items:center;gap:8px;min-height:74px;flex-wrap:wrap;justify-content:flex-end}
+  .completed-card{
+    width:52px;height:72px;border-radius:6px;border:1px solid #aaa;background:#f8f8f8;color:#111;
+    display:grid;place-items:center;font-size:24px;box-shadow:0 2px 8px #000
+  }
+  .modal{
+    position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;padding:20px
+  }
+  .modal.show{display:flex}
+  .modal-box{max-width:430px;width:100%;background:#111;border:1px solid #333;border-radius:16px;padding:24px;text-align:center;box-shadow:0 30px 80px #000}
+  .modal-box h2{margin:0 0 8px;font-size:28px}
+  .modal-box p{color:#bbb;margin:0 0 20px;line-height:1.5}
+  .modal-actions{display:flex;justify-content:center;gap:10px}
+  .toast{
+    position:fixed;top:82px;left:50%;transform:translateX(-50%) translateY(-8px);
+    background:#ececec;color:#090909;padding:10px 14px;border-radius:9px;font-weight:650;font-size:13px;
+    opacity:0;pointer-events:none;transition:.2s;z-index:300;box-shadow:0 8px 24px rgba(0,0,0,.5)
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .help{
+    max-width:780px;text-align:left
+  }
+  .help li{margin:8px 0;color:#ccc}
+  @media(max-width:800px){
+    header{align-items:flex-start;flex-direction:column}
+    .toolbar{justify-content:flex-start}
+    .board-wrap{padding-left:10px;padding-right:10px}
+    .tableau{justify-content:start;transform-origin:top left}
+    .status{width:100%;margin-left:0}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">
+      <div class="spider">♠</div>
+      <div><h1>Spider Solitaire</h1><div class="sub">Stack downward by rank; complete same-suit K→A runs</div></div>
+    </div>
+    <div class="toolbar">
+      <button class="btn" id="newBtn">New Game</button>
+      <button class="btn" id="undoBtn">↶ Undo</button>
+      <button class="btn" id="hintBtn">💡 Hint</button>
+      <button class="btn" id="helpBtn">? Rules</button>
+    </div>
+  </header>
+
+  <div class="stats">
+    <span class="stat">Moves: <strong id="moves">0</strong></span>
+    <span class="stat">Score: <strong id="score">500</strong></span>
+    <span class="stat">Completed: <strong id="done">0 / 8</strong></span>
+    <span class="stat">Stock deals: <strong id="deals">5</strong></span>
+    <span class="status" id="status">Select a face-up card to move.</span>
+  </div>
+
+  <main class="board-wrap">
+    <div id="tableau" class="tableau"></div>
+  </main>
+
+  <div class="dock">
+    <div class="dock-inner">
+      <div>
+        <div class="stock-area">
+          <div id="stock" class="stock-stack" title="Deal one card to each column"></div>
+          <div>
+            <div><strong>Stock</strong></div>
+            <div class="stock-label" id="stockLabel">Click to deal 10 cards</div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:12px;color:#aaa;text-align:right;margin-bottom:5px">Completed runs</div>
+        <div id="completed" class="completed"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="gameModal">
+  <div class="modal-box">
+    <h2 id="modalTitle">You won!</h2>
+    <p id="modalText"></p>
+    <div class="modal-actions">
+      <button class="btn primary" id="playAgainBtn">Play Again</button>
+      <button class="btn" id="closeModalBtn">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="helpModal">
+  <div class="modal-box help">
+    <h2>How to Play</h2>
+    <ul>
+      <li>Move face-up cards onto a card exactly one rank higher, regardless of suit or color.</li>
+      <li>You can stack mixed suits, but a multi-card run can move together only when it is descending and all cards in that run are the same suit.</li>
+      <li>An empty column can accept any movable card or valid same-suit sequence.</li>
+      <li>Click the stock to deal one new card to every column. You cannot deal while a column is empty.</li>
+      <li>A complete same-suit King-to-Ace run is automatically removed.</li>
+      <li>Remove all eight runs to win.</li>
+    </ul>
+    <div class="modal-actions"><button class="btn primary" id="closeHelpBtn">Got it</button></div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+(() => {
+  const SUITS = ['♠','♥','♦','♣'];
+  const RANKS = {1:'A',2:'2',3:'3',4:'4',5:'5',6:'6',7:'7',8:'8',9:'9',10:'10',11:'J',12:'Q',13:'K'};
+  let columns=[], stock=[], completedRuns=[], selected=null, moves=0, score=500, history=[], gameEnded=false, hintTimer=null;
+
+  const el = id => document.getElementById(id);
+  const tableau = el('tableau');
+
+  function cloneState(){
+    return JSON.parse(JSON.stringify({columns,stock,completedRuns,moves,score,gameEnded}));
+  }
+  function saveHistory(){ history.push(cloneState()); if(history.length>150) history.shift(); }
+  function restore(s){
+    ({columns,stock,completedRuns,moves,score,gameEnded}=JSON.parse(JSON.stringify(s)));
+    selected=null; clearHints(); render();
+  }
+  function buildDeck(){
+    const deck=[];
+    let id=1;
+    // Standard 4-suit Spider deck: two full decks = 104 cards.
+    for(let p=0;p<2;p++){
+      for(const suit of SUITS){
+        for(let r=1;r<=13;r++) deck.push({id:id++,rank:r,suit,up:false});
+      }
+    }
+    for(let i=deck.length-1;i>0;i--){
+      const j=Math.floor(Math.random()*(i+1));
+      [deck[i],deck[j]]=[deck[j],deck[i]];
+    }
+    return deck;
+  }
+  function newGame(){
+    const deck=buildDeck();
+    columns=Array.from({length:10},()=>[]);
+    for(let c=0;c<10;c++){
+      const count=c<4?6:5;
+      for(let i=0;i<count;i++){
+        const card=deck.pop();
+        card.up=i===count-1;
+        columns[c].push(card);
+      }
+    }
+    stock=deck;
+    completedRuns=[];
+    selected=null;
+    moves=0; score=500; history=[]; gameEnded=false;
+    el('gameModal').classList.remove('show');
+    clearHints();
+    render();
+  }
+  function render(){
+    tableau.innerHTML='';
+    columns.forEach((col,ci)=>{
+      const column=document.createElement('div');
+      column.className='column';
+      column.dataset.col=ci;
+      column.addEventListener('click', e=>{
+        if(e.target===column || e.target.classList.contains('empty-slot')) handleColumnClick(ci);
+      });
+      const empty=document.createElement('div');
+      empty.className='empty-slot';
+      column.appendChild(empty);
+
+      let y=0;
+      col.forEach((card,idx)=>{
+        const div=document.createElement('div');
+        div.className='card '+(card.up?'face-up':'face-down');
+        if(card.up && (card.suit==='♥'||card.suit==='♦')) div.classList.add('red');
+        if(selected && selected.col===ci && idx>=selected.index) div.classList.add('selected');
+        div.dataset.col=ci; div.dataset.index=idx; div.dataset.id=card.id;
+        div.style.top=y+'px';
+        div.style.zIndex=idx+1;
+        if(card.up){
+          div.innerHTML=`<div class="corner">${RANKS[card.rank]}<div class="s">${card.suit}</div></div><div class="center-suit">${card.suit}</div><div class="lower">${RANKS[card.rank]}<div class="s">${card.suit}</div></div>`;
+          div.addEventListener('click', e=>{ e.stopPropagation(); handleCardClick(ci,idx); });
+        }
+        column.appendChild(div);
+        y += card.up ? 31 : 23;
+      });
+      column.style.minHeight=Math.max(520,y+140)+'px';
+      tableau.appendChild(column);
+    });
+    el('moves').textContent=moves;
+    el('score').textContent=score;
+    el('done').textContent=`${completedRuns.length} / 8`;
+    el('deals').textContent=Math.floor(stock.length/10);
+    el('undoBtn').disabled=!history.length;
+    renderStock();
+    renderCompleted();
+    updateStatus();
+    detectGameState();
+  }
+  function renderStock(){
+    const s=el('stock'); s.innerHTML='';
+    const deals=Math.floor(stock.length/10);
+    for(let i=0;i<Math.min(deals,5);i++){
+      const m=document.createElement('div');
+      m.className='mini-card';
+      m.style.left=(i*12)+'px';
+      m.style.zIndex=i+1;
+      s.appendChild(m);
+    }
+    el('stockLabel').textContent=deals?`Click to deal • ${deals} left`:'No cards left';
+    s.style.cursor=deals?'pointer':'default';
+  }
+  function renderCompleted(){
+    const c=el('completed'); c.innerHTML='';
+    completedRuns.forEach(run=>{
+      const d=document.createElement('div');
+      d.className='completed-card';
+      d.textContent=run.suit;
+      c.appendChild(d);
+    });
+  }
+  function isMovableSequence(col,index){
+    const arr=columns[col];
+    if(!arr[index]?.up) return false;
+    for(let i=index;i<arr.length-1;i++){
+      if(!arr[i+1].up) return false;
+      if(arr[i].rank!==arr[i+1].rank+1) return false;
+      if(arr[i].suit!==arr[i+1].suit) return false;
+    }
+    return true;
+  }
+  function canPlace(card,targetCol){
+    const t=columns[targetCol];
+    if(!t.length) return true;
+    const top=t[t.length-1];
+    return top.up && top.rank===card.rank+1;
+  }
+  function handleCardClick(ci,idx){
+    if(gameEnded) return;
+    const card=columns[ci][idx];
+    if(!card.up) return;
+    if(selected){
+      if(ci===selected.col && idx>=selected.index){
+        selected=null; render(); return;
+      }
+      const moving=columns[selected.col][selected.index];
+      if(canPlace(moving,ci)){
+        moveSelectedTo(ci);
+        return;
+      }
+    }
+    if(isMovableSequence(ci,idx)){
+      selected={col:ci,index:idx};
+      clearHints();
+      render();
+    } else {
+      toast('Only same-suit descending runs can move together.');
+    }
+  }
+  function handleColumnClick(ci){
+    if(gameEnded || !selected) return;
+    if(columns[ci].length===0) moveSelectedTo(ci);
+  }
+  function moveSelectedTo(targetCol){
+    if(!selected) return;
+    if(targetCol===selected.col) return;
+    const movingCard=columns[selected.col][selected.index];
+    if(!canPlace(movingCard,targetCol)){ toast('That card cannot be placed there.'); return; }
+    saveHistory();
+    const src=selected.col;
+    const seq=columns[src].splice(selected.index);
+    columns[targetCol].push(...seq);
+    selected=null;
+    moves++; score=Math.max(0,score-1);
+    flipTop(src);
+    checkComplete(targetCol);
+    render();
+  }
+  function flipTop(ci){
+    const c=columns[ci];
+    if(c.length && !c[c.length-1].up){
+      c[c.length-1].up=true;
+      score+=5;
+    }
+  }
+  function checkComplete(ci){
+    const c=columns[ci];
+    if(c.length<13) return false;
+    const start=c.length-13;
+    const suit=c[start].suit;
+    for(let i=0;i<13;i++){
+      const card=c[start+i];
+      if(!card.up || card.suit!==suit || card.rank!==13-i) return false;
+    }
+    c.splice(start,13);
+    completedRuns.push({suit});
+    score+=100;
+    flipTop(ci);
+    setTimeout(()=>toast('Complete suit removed! +100'),30);
+    // A removal can expose another complete run.
+    if(c.length>=13) checkComplete(ci);
+    return true;
+  }
+  function dealStock(){
+    if(gameEnded || stock.length<10) return;
+    if(columns.some(c=>c.length===0)){
+      toast('Fill every empty column before dealing from the stock.');
+      return;
+    }
+    saveHistory();
+    selected=null;
+    for(let i=0;i<10;i++){
+      const card=stock.pop();
+      card.up=true;
+      columns[i].push(card);
+    }
+    moves++; score=Math.max(0,score-1);
+    for(let i=0;i<10;i++) checkComplete(i);
+    render();
+  }
+  function undo(){
+    if(!history.length) return;
+    const s=history.pop();
+    restore(s);
+    toast('Move undone.');
+  }
+  function allLegalMoves(){
+    const out=[];
+    for(let s=0;s<10;s++){
+      for(let idx=0;idx<columns[s].length;idx++){
+        if(!isMovableSequence(s,idx)) continue;
+        const card=columns[s][idx];
+        for(let t=0;t<10;t++){
+          if(t===s) continue;
+          if(canPlace(card,t)){
+            const target=columns[t][columns[t].length-1];
+            // Avoid obviously pointless moving a full stack to another empty col.
+            if(columns[t].length===0 && idx===0) continue;
+            out.push({s,idx,t,card,target});
+          }
+        }
+      }
+    }
+    return out;
+  }
+  function hint(){
+    if(gameEnded) return;
+    clearHints();
+    const movesList=allLegalMoves();
+    if(movesList.length){
+      // Prefer same-suit continuation, then uncovering a face-down card.
+      movesList.sort((a,b)=>{
+        const as=(a.target && a.target.suit===a.card.suit?3:0)+(a.idx>0 && !columns[a.s][a.idx-1].up?2:0);
+        const bs=(b.target && b.target.suit===b.card.suit?3:0)+(b.idx>0 && !columns[b.s][b.idx-1].up?2:0);
+        return bs-as;
+      });
+      const m=movesList[0];
+      const src=document.querySelector(`.card[data-col="${m.s}"][data-index="${m.idx}"]`);
+      const tgt=columns[m.t].length
+        ? document.querySelector(`.card[data-col="${m.t}"][data-index="${columns[m.t].length-1}"]`)
+        : tableau.children[m.t].querySelector('.empty-slot');
+      src?.classList.add('hint-source');
+      tgt?.classList.add('hint-target');
+      el('status').textContent=`Hint: move ${RANKS[m.card.rank]}${m.card.suit} from column ${m.s+1} to column ${m.t+1}.`;
+      hintTimer=setTimeout(clearHints,3500);
+    } else if(stock.length>=10 && !columns.some(c=>c.length===0)){
+      el('stock').style.filter='drop-shadow(0 0 10px #ffd84c)';
+      toast('No useful tableau move found — deal from the stock.');
+      hintTimer=setTimeout(clearHints,3500);
+    } else {
+      toast('No legal move found.');
+      detectGameState(true);
+    }
+  }
+  function clearHints(){
+    if(hintTimer) clearTimeout(hintTimer);
+    document.querySelectorAll('.hint-source,.hint-target').forEach(x=>x.classList.remove('hint-source','hint-target'));
+    el('stock').style.filter='';
+  }
+  function updateStatus(){
+    if(gameEnded) return;
+    if(selected){
+      const c=columns[selected.col][selected.index];
+      el('status').textContent=`Selected ${RANKS[c.rank]}${c.suit} — choose a destination.`;
+    } else {
+      el('status').textContent='Select a face-up card to move.';
+    }
+  }
+  function detectGameState(force=false){
+    if(completedRuns.length===8){
+      gameEnded=true;
+      showGameModal('You won! 🎉',`All eight runs cleared in ${moves} moves with a score of ${score}.`);
+      el('status').textContent='Game complete.';
+      return;
+    }
+    const noMoves=allLegalMoves().length===0;
+    const cannotDeal=stock.length<10 || columns.some(c=>c.length===0);
+    if((force || stock.length===0) && noMoves && cannotDeal){
+      gameEnded=true;
+      showGameModal('Game Over',`No legal moves remain. You completed ${completedRuns.length} of 8 runs.`);
+      el('status').textContent='No legal moves remain.';
+    }
+  }
+  function showGameModal(title,text){
+    el('modalTitle').textContent=title;
+    el('modalText').textContent=text;
+    el('gameModal').classList.add('show');
+  }
+  function toast(msg){
+    const t=el('toast');
+    t.textContent=msg;t.classList.add('show');
+    clearTimeout(t._timer);
+    t._timer=setTimeout(()=>t.classList.remove('show'),2200);
+  }
+
+  el('stock').addEventListener('click',dealStock);
+  el('undoBtn').addEventListener('click',undo);
+  el('hintBtn').addEventListener('click',hint);
+  el('newBtn').addEventListener('click',()=>{
+    if(moves===0 || confirm('Start a new game? Current progress will be lost.')) newGame();
+  });
+  el('playAgainBtn').addEventListener('click',newGame);
+  el('closeModalBtn').addEventListener('click',()=>el('gameModal').classList.remove('show'));
+  el('helpBtn').addEventListener('click',()=>el('helpModal').classList.add('show'));
+  el('closeHelpBtn').addEventListener('click',()=>el('helpModal').classList.remove('show'));
+  document.addEventListener('keydown',e=>{
+    if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();undo();}
+    if(e.key.toLowerCase()==='h') hint();
+    if(e.key==='Escape'){selected=null;el('gameModal').classList.remove('show');el('helpModal').classList.remove('show');render();}
+  });
+
+  newGame();
+})();
+</script>
+</body>
+</html>
